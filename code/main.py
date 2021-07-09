@@ -24,13 +24,12 @@ import numpy as np
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
-#import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import time
-#import lmdb
+# import lmdb
 from scipy import misc
 import cal as c
-
 
 parser = argparse.ArgumentParser(description='Pytorch Detecting Out-of-distribution examples in neural networks')
 
@@ -42,12 +41,9 @@ parser.add_argument('--magnitude', default=0.0014, type=float,
                     help='perturbation magnitude')
 parser.add_argument('--temperature', default=1000, type=int,
                     help='temperature scaling')
-parser.add_argument('--gpu', default = 0, type = int,
-		    help='gpu index')
+parser.add_argument('--gpu', default=0, type=int,
+                    help='gpu index')
 parser.set_defaults(argument=True)
-
-
-
 
 
 # Setting the name of neural networks
@@ -56,7 +52,7 @@ parser.set_defaults(argument=True)
 # Densenet trained on CIFAR-100:        densenet100
 # Wide-ResNet trained on CIFAR-10:    wideresnet10
 # Wide-ResNet trained on CIFAR-100:   wideresnet100
-#nnName = "densenet10"
+# nnName = "densenet10"
 
 # Setting the name of the out-of-distribution dataset
 
@@ -67,35 +63,19 @@ parser.set_defaults(argument=True)
 # iSUN:                     iSUN
 # Gaussian noise:           Gaussian
 # Uniform  noise:           Uniform
-#dataName = "Imagenet"
+# dataName = "Imagenet"
 
 
 # Setting the perturbation magnitude
-#epsilon = 0.0014
+# epsilon = 0.0014
 
 # Setting the temperature
-#temperature = 1000
+# temperature = 1000
 def main():
     global args
     args = parser.parse_args()
     c.test(args.nn, args.out_dataset, args.gpu, args.magnitude, args.temperature)
 
+
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
