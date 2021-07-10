@@ -34,9 +34,6 @@ def testData(net1, criterion, CUDA_DEVICE, testloader10, testloader, nnName, dat
     g1 = open("./softmax_scores/confidence_Our_In.txt", 'w')
     g2 = open("./softmax_scores/confidence_Our_Out.txt", 'w')
 
-    h1 = open("softmax_scores/confidence_Our_In.txt", 'w')
-    h2 = open("softmax_scores/confidence_Our_Out.txt", 'w')
-
     N = 10000
     if dataName == "iSUN": N = 8925
     print("Processing in-distribution images")

@@ -218,4 +218,4 @@ if __name__ == '__main__':
     #                                            shuffle=False, num_workers=2)
     #
     # testImprovement(LabelSmoothingLoss(smoothing=0.3), testloaderIn, testloaderOut, 'improved_densenet', 0.0014, 1000)
-    m.metric('densenet10', 'Imagenet')
+    m.metric('improved_densenet', 'Imagenet')
