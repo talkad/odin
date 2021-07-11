@@ -73,6 +73,9 @@ def train():
             optimizer.zero_grad()
 
             outputs = densenet(inputs)
+            print('aaaaaaaaaaaaa')
+            print(outputs)
+            break
             # train the model with label smoothing loss
             loss = criterion(outputs, labels)
             loss.backward()
@@ -204,6 +207,7 @@ def testImprovement(criterion, testloader10, testloader, nnName, noiseMagnitude1
 
 
 if __name__ == '__main__':
+    train()
     # transform = transforms.Compose([
     #     transforms.ToTensor(),
     #     transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
@@ -218,4 +222,4 @@ if __name__ == '__main__':
     #                                            shuffle=False, num_workers=2)
     #
     # testImprovement(LabelSmoothingLoss(smoothing=0.3), testloaderIn, testloaderOut, 'improved_densenet', 0.0014, 1000)
-    m.metric('improved_densenet', 'Imagenet')
+    # # m.metric('improved_densenet', 'Imagenet')
