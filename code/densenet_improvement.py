@@ -66,6 +66,7 @@ def train():
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
             inputs, labels = data
+
             labels = labels.type(torch.FloatTensor)
             labels = Variable(labels.cuda(0), requires_grad=True)
             inputs = Variable(inputs.cuda(0), requires_grad=True)

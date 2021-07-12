@@ -1,0 +1,2 @@
+Dataset Name,Algorithm Name,Cross Validation [1-10],best temperature_magnitude,Acc,,Algorithm Name,Cross Validation [1-10],best temperature_magnitude,Acc,,Algorithm Name,Cross Validation [1-10],best temperature_magnitude,Acc,
+CIFAR10,base,1,850_0.0012,59.391666666666666%,,article,1,850_0.0012,60.019444444444446%,,improve,1,850_0.0012,50.5125%,
