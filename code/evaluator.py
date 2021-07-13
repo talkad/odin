@@ -55,9 +55,10 @@ class Convnet(nn.Module):
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.fc1 = nn.Linear(16 * 5 * 5, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 64)
+        self.fc4 = nn.Linear(64, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -65,7 +66,8 @@ class Convnet(nn.Module):
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
         return x
 
 
@@ -410,7 +412,7 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
     results_article = {}
     result_improve = {}
 
-    for i in range(5):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
+    for i in range(1):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
         temperature = secrets.choice(hyper_params['temperature'])
         magnitude = secrets.choice(hyper_params['magnitude'])
 
@@ -469,13 +471,13 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
         new_model_original = deepcopy(model)
         new_model_improved = deepcopy(model)
 
-        # print('train with original loss')
-        # train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
-        # print('train with improved loss')
-        # train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
+        print('train with original loss')
+        train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
+        print('train with improved loss')
+        train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
 
-        new_model_original = load_model(f'../models/original_model_{fold_num}')
-        new_model_improved = load_model(f'../models/improved_model_{fold_num}')
+        # new_model_original = load_model(f'../models/original_model_{fold_num}')
+        # new_model_improved = load_model(f'../models/improved_model_{fold_num}')
 
         (base), (article), (improve) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
 
@@ -504,10 +506,10 @@ if __name__ == '__main__':
     ])
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-
-    criterion_original = nn.CrossEntropyLoss()
-    criterion_improved = LabelSmoothingLoss(smoothing=0.1)
-    convnet = Convnet()
-
-    cross_validation(convnet, space, criterion_original, criterion_improved, trainset)
+    print(trainset)
+    # criterion_original = nn.CrossEntropyLoss()
+    # criterion_improved = LabelSmoothingLoss(smoothing=0.1)
+    # convnet = Convnet()
+    # print(convnet)
+    # cross_validation(convnet, space, criterion_original, criterion_improved, trainset)
 
