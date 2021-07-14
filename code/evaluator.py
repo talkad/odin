@@ -11,7 +11,6 @@ import secrets
 import time
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader
-import pandas as pd
 import warnings
 import operator
 import csv
@@ -505,8 +504,17 @@ if __name__ == '__main__':
         transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
     ])
 
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    print(trainset)
+    trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True)
+
+    indexes = {0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: []}
+    for idx, (data, feature) in enumerate(trainset):
+        indexes[int(feature / 10)].append(idx)
+
+    split_cifar = []
+
+    for i in range(10):
+        split_cifar.append(torch.utils.data.dataset.Subset(trainset, indexes[i]))
+
     # criterion_original = nn.CrossEntropyLoss()
     # criterion_improved = LabelSmoothingLoss(smoothing=0.1)
     # convnet = Convnet()
