@@ -66,8 +66,9 @@ def error_detection(fold_num):
 
     return errorBase, errorNew, errorNew_Improved
 
+
 # calculate the falsepositive error when tpr is 95%
-def tpr95(fold_num):
+def fpr(fold_num):
     # calculate baseline
     base_in = np.loadtxt(f'./softmax_scores/confidence_Base_In{fold_num}.txt', delimiter=',')
     base_out = np.loadtxt(f'./softmax_scores/confidence_Base_Out{fold_num}.txt', delimiter=',')
@@ -125,11 +126,11 @@ def tpr95(fold_num):
             total += 1
     fprImproved = fpr / total
 
-    return fprBase, fprNew, fprImproved
+    return fprBase*100, fprNew*100, fprImproved*100
 
 
-# calculate the AUROC
-def auroc(fold_num):
+# calculate the AUC
+def auc(fold_num):
     # calculate baseline
     base_in = np.loadtxt(f'./softmax_scores/confidence_Base_In{fold_num}.txt', delimiter=',')
     base_out = np.loadtxt(f'./softmax_scores/confidence_Base_Out{fold_num}.txt', delimiter=',')
@@ -184,10 +185,10 @@ def auroc(fold_num):
         fprTemp = fpr
     aurocImproved += fpr * tpr
 
-    return aurocBase, aurocNew, aurocImproved
+    return aurocBase*100, aurocNew*100, aurocImproved*100
 
 # calculate the AUPR
-def auprOut(fold_num):
+def aupr(fold_num):
     # calculate baseline
     base_in = np.loadtxt(f'./softmax_scores/confidence_Base_In{fold_num}.txt', delimiter=',')
     base_out = np.loadtxt(f'./softmax_scores/confidence_Base_Out{fold_num}.txt', delimiter=',')
@@ -256,4 +257,4 @@ def auprOut(fold_num):
         recallTemp = recall
     auprImproved += recall * precision
 
-    return auprBase, auprNew, auprImproved
+    return auprBase*100, auprNew*100, auprImproved*100

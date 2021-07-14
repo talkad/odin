@@ -11,7 +11,8 @@ from torch.utils.data import TensorDataset
 import warnings
 import csv
 from model_evaluator import eval_improvement, eval_models
-from metrics import error_detection
+from metrics import error_detection, fpr, auc, aupr
+from time import time
 
 
 # store the model after training
@@ -105,7 +106,7 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
     results_article = {}
     result_improve = {}
 
-    for i in range(1):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
+    for i in range(2):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
         temperature = secrets.choice(hyper_params['temperature'])
         magnitude = secrets.choice(hyper_params['magnitude'])
 
@@ -128,8 +129,8 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
 
 # define a cross validation function
 def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10):
-
-    header = ['Dataset Name'] + ['Algorithm Name', 'Cross Validation [1-10]', 'best temperature_magnitude', 'Acc', ''] * 3
+    # define all table cols
+    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', ''] * 3
     f = open('CIFAR10.csv', 'w', encoding='UTF8')
     writer = csv.writer(f)
     writer.writerow(header)
@@ -161,21 +162,32 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
                                                    shuffle=True, num_workers=4)
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=True, num_workers=4)
 
-        new_model_original = deepcopy(model)
-        new_model_improved = deepcopy(model)
+        # new_model_original = deepcopy(model)
+        # new_model_improved = deepcopy(model)
+        #
+        # print('train with original loss')
+        original_train = time()
+        # train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
+        original_train = time() - original_train
+        # print('train with improved loss')
+        improved_train = time()
+        # train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
+        improved_train = time() - improved_train
 
-        print('train with original loss')
-        train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
-        print('train with improved loss')
-        train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
+        new_model_original = load_model(f'../models/original_model_{fold_num}')
+        new_model_improved = load_model(f'../models/improved_model_{fold_num}')
 
-        # new_model_original = load_model(f'../models/original_model_{fold_num}')
-        # new_model_improved = load_model(f'../models/improved_model_{fold_num}')
+        (baseAcc), (articleAcc), (improveAcc) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
+        fprBase, fprNew, fprImproved = fpr(fold_num)
+        aurocBase, aurocNew, aurocImproved = auc(fold_num)
+        auprBase, auprNew, auprImproved = aupr(fold_num)
 
-        (base), (article), (improve) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
-
-        data = ['CIFAR10'] + ['base', fold_num, base[0], f'{base[1]}%', ''] + ['article', fold_num, article[0], f'{article[1]}%', ''] + ['improve', fold_num, improve[0], f'{improve[1]}%', '']
+        data = ['CIFAR10', fold_num] +\
+               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train, ''] +\
+               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew, original_train, ''] +\
+               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved, auprImproved, improved_train, '']
         writer.writerow(data)
+
         break
         fold_num += 1
 
@@ -189,7 +201,7 @@ if __name__ == '__main__':
     # update according to the article
     # build convnet trained on CIFAR10 and test against ImageNet
     space = dict()
-    space['temperature'] = [10, 20, 50, 100, 200, 500, 1000]
+    space['temperature'] = [10, 20, 50, 100, 200, 500, 1000, 1500]
     space['magnitude'] = [0.0005, 0.001, 0.00015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
 
     # transform the in-out images to be of the same shape
@@ -201,9 +213,9 @@ if __name__ == '__main__':
 
     trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
 
-    # criterion_original = nn.CrossEntropyLoss()
-    # criterion_improved = LabelSmoothingLoss(smoothing=0.1)
-    # convnet = Convnet()
-    #
-    # cross_validation(convnet, space, criterion_original, criterion_improved, trainset)
+    criterion_original = nn.CrossEntropyLoss()
+    criterion_improved = LabelSmoothingLoss(smoothing=0.1)
+    convnet = Convnet()
+
+    cross_validation(convnet, space, criterion_original, criterion_improved, trainset)
 

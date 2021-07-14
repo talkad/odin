@@ -5,9 +5,29 @@ from torch.autograd import Variable
 import time
 import numpy as np
 from torch.utils.data import TensorDataset
-from evaluator import LabelSmoothingLoss
+import torchvision.transforms as transforms
+import torch.nn.functional as F
 
 
+# the suggested improvement
+# replacing the cross entropy loss with label smoothing loss
+class LabelSmoothingLoss(nn.Module):
+
+    def __init__(self, smoothing=0.0):
+        super(LabelSmoothingLoss, self).__init__()
+        self.smoothing = smoothing
+
+    def forward(self, pred, target):
+        log_prob = F.log_softmax(pred, dim=-1)
+        num_classes = pred.size()
+
+        weight = pred.new_ones(num_classes) * self.smoothing / (pred.size(-1) - 1.)
+        target = target.type(torch.int64)
+        weight.scatter_(-1, target.unsqueeze(-1), (1. - self.smoothing))
+
+        return (-weight * log_prob).sum(dim=-1).mean()
+
+# write the softmax score into files for each model
 def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_num):
 
     t0 = time.time()
@@ -127,6 +147,12 @@ def eval_models(model_original, temper, noiseMagnitude1, testloader, fold_num):
     f2 = open(f"./softmax_scores/confidence_Base_Out{fold_num}.txt", 'w')
     g1 = open(f"./softmax_scores/confidence_Our_In{fold_num}.txt", 'w')
     g2 = open(f"./softmax_scores/confidence_Our_Out{fold_num}.txt", 'w')
+
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.CenterCrop(32),
+        transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
+    ])
 
     testsetout = torchvision.datasets.ImageFolder("../data/{}".format('Imagenet'), transform=transform)
     testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=1,
