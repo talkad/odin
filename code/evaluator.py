@@ -493,10 +493,11 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
 if __name__ == '__main__':
     warnings.filterwarnings("ignore")
 
+    # update according to the article
     # build convnet trained on CIFAR10 and test against ImageNet
     space = dict()
-    space['temperature'] = [x for x in range(800, 1250, 50)]
-    space['magnitude'] = [x/10000 for x in range(10, 20, 1)]
+    space['temperature'] = [10, 20, 50, 100, 200, 500, 1000]
+    space['magnitude'] = [0.0005, 0.001, 0.00015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
 
     # transform the in-out images to be of the same shape
     transform = transforms.Compose([
@@ -505,8 +506,12 @@ if __name__ == '__main__':
         transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
     ])
 
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    print(trainset)
+    trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
+    # for data, cla in trainset:
+    #     print(cla)
+
+
+    print(len(trainset.data))
     # criterion_original = nn.CrossEntropyLoss()
     # criterion_improved = LabelSmoothingLoss(smoothing=0.1)
     # convnet = Convnet()
