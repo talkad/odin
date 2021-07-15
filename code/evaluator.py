@@ -5,23 +5,24 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import pickle
-from torch.autograd import Variable
 import torch.optim as optim
 import secrets
 import time
-import numpy as np
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset
 import warnings
-import operator
 import csv
+from model_evaluator import eval_improvement, eval_models
+from metrics import error_detection, fpr, auc, aupr
+from time import time
 
 
+# store the model after training
 def store_model(model, filename):
     pickle_file = open(filename, 'wb')
     pickle.dump(model, pickle_file)
     pickle_file.close()
 
-
+# load the stored model
 def load_model(filename):
     pickle_file = open(filename, 'rb')
     loaded = pickle.load(pickle_file)
@@ -31,6 +32,7 @@ def load_model(filename):
 
 
 # the suggested improvement
+# replacing the cross entropy loss with label smoothing loss
 class LabelSmoothingLoss(nn.Module):
 
     def __init__(self, smoothing=0.0):
@@ -48,6 +50,7 @@ class LabelSmoothingLoss(nn.Module):
         return (-weight * log_prob).sum(dim=-1).mean()
 
 
+# simplified model for training (compared the the densenet in the article)
 class Convnet(nn.Module):
     def __init__(self):
         super().__init__()
@@ -70,239 +73,7 @@ class Convnet(nn.Module):
         return x
 
 
-def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_num):
-
-    t0 = time.time()
-    criterion_improved = LabelSmoothingLoss(smoothing=0.1)
-    h1 = open(f"softmax_scores/confidence_Our_In_Improved{fold_num}.txt", 'w')
-    h2 = open(f"softmax_scores/confidence_Our_Out_Improved{fold_num}.txt", 'w')
-
-    N = 10000
-    print("Processing in-distribution images")
-    ########################################In-distribution###########################################
-    for j, data in enumerate(testloader):
-        if j < 1000: continue
-        images, _ = data
-
-        inputs = Variable(images, requires_grad=True)
-        outputs = model_improved(inputs)
-
-        # Calculating the confidence of the output, no perturbation added here, no temperature scaling used
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-
-        # Using temperature scaling
-        outputs = outputs / temper
-
-        # Calculating the perturbation we need to add, that is,
-        # the sign of gradient of cross entropy loss w.r.t. input
-        maxIndexTemp = np.argmax(nnOutputs)
-        labels = Variable(torch.LongTensor([maxIndexTemp]))
-        loss = criterion_improved(outputs, labels)
-        loss.backward()
-
-        # Normalizing the gradient to binary in {0, 1}
-        gradient = torch.ge(inputs.grad.data, 0)
-        gradient = (gradient.float() - 0.5) * 2
-        # Normalizing the gradient to the same space of image
-        gradient[0][0] = (gradient[0][0]) / (63.0 / 255.0)
-        gradient[0][1] = (gradient[0][1]) / (62.1 / 255.0)
-        gradient[0][2] = (gradient[0][2]) / (66.7 / 255.0)
-        # Adding small perturbations to images
-        tempInputs = torch.add(inputs.data, -noiseMagnitude1, gradient)
-        outputs = model_improved(Variable(tempInputs))
-        outputs = outputs / temper
-
-        # Calculating the confidence after adding perturbations
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-        h1.write("{}, {}, {}\n".format(temper, noiseMagnitude1, np.max(nnOutputs)))
-
-        if j % 100 == 99:
-            print("{:4}/{:4} images processed, {:.1f} seconds used.".format(j + 1 - 1000, N - 1000, time.time() - t0))
-            t0 = time.time()
-
-        if j == N - 1: break
-
-    t0 = time.time()
-    print("Processing out-of-distribution images")
-    ###################################Out-of-Distributions#####################################
-    for j, data in enumerate(testloader):
-        if j < 1000: continue
-        images, _ = data
-
-        inputs = Variable(images, requires_grad=True)
-        outputs = model_improved(inputs)
-
-        # Calculating the confidence of the output, no perturbation added here
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-
-        # Using temperature scaling
-        outputs = outputs / temper
-
-        # Calculating the perturbation we need to add, that is,
-        # the sign of gradient of cross entropy loss w.r.t. input
-        maxIndexTemp = np.argmax(nnOutputs)
-        labels = Variable(torch.LongTensor([maxIndexTemp]))
-        loss = criterion_improved(outputs, labels)
-        loss.backward()
-
-        # Normalizing the gradient to binary in {0, 1}
-        gradient = (torch.ge(inputs.grad.data, 0))
-        gradient = (gradient.float() - 0.5) * 2
-        # Normalizing the gradient to the same space of image
-        gradient[0][0] = (gradient[0][0]) / (63.0 / 255.0)
-        gradient[0][1] = (gradient[0][1]) / (62.1 / 255.0)
-        gradient[0][2] = (gradient[0][2]) / (66.7 / 255.0)
-        # Adding small perturbations to images
-        tempInputs = torch.add(inputs.data, -noiseMagnitude1, gradient)
-        outputs = model_improved(Variable(tempInputs))
-        outputs = outputs / temper
-        # Calculating the confidence after adding perturbations
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-        h2.write("{}, {}, {}\n".format(temper, noiseMagnitude1, np.max(nnOutputs)))
-        if j % 100 == 99:
-            print("{:4}/{:4} images processed, {:.1f} seconds used.".format(j + 1 - 1000, N - 1000, time.time() - t0))
-            t0 = time.time()
-
-        if j == N - 1: break
-
-
-def eval_models(model_original, temper, noiseMagnitude1, testloader, fold_num):
-
-    t0 = time.time()
-    f1 = open(f"./softmax_scores/confidence_Base_In{fold_num}.txt", 'w')
-    f2 = open(f"./softmax_scores/confidence_Base_Out{fold_num}.txt", 'w')
-    g1 = open(f"./softmax_scores/confidence_Our_In{fold_num}.txt", 'w')
-    g2 = open(f"./softmax_scores/confidence_Our_Out{fold_num}.txt", 'w')
-
-    testsetout = torchvision.datasets.ImageFolder("../data/{}".format('Imagenet'), transform=transform)
-    testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=1,
-                                                shuffle=False, num_workers=2)
-
-    criterion_original = nn.CrossEntropyLoss()
-
-    N = 10000
-    print("Processing in-distribution images")
-    ########################################In-distribution###########################################
-    for j, data in enumerate(testloader):
-        if j < 1000: continue
-        images, _ = data
-
-        inputs = Variable(images, requires_grad=True)
-        outputs = model_original(inputs)
-
-        # Calculating the confidence of the output, no perturbation added here, no temperature scaling used
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-        f1.write("{}, {}, {}\n".format(temper, noiseMagnitude1, np.max(nnOutputs)))
-
-        # Using temperature scaling
-        outputs = outputs / temper
-
-        # Calculating the perturbation we need to add, that is,
-        # the sign of gradient of cross entropy loss w.r.t. input
-        maxIndexTemp = np.argmax(nnOutputs)
-        labels = Variable(torch.LongTensor([maxIndexTemp]))
-        loss = criterion_original(outputs, labels)
-        loss.backward()
-
-        # Normalizing the gradient to binary in {0, 1}
-        gradient = torch.ge(inputs.grad.data, 0)
-        gradient = (gradient.float() - 0.5) * 2
-        # Normalizing the gradient to the same space of image
-        gradient[0][0] = (gradient[0][0]) / (63.0 / 255.0)
-        gradient[0][1] = (gradient[0][1]) / (62.1 / 255.0)
-        gradient[0][2] = (gradient[0][2]) / (66.7 / 255.0)
-        # Adding small perturbations to images
-        tempInputs = torch.add(inputs.data, -noiseMagnitude1, gradient)
-        outputs = model_original(Variable(tempInputs))
-        outputs = outputs / temper
-
-        # Calculating the confidence after adding perturbations
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-        g1.write("{}, {}, {}\n".format(temper, noiseMagnitude1, np.max(nnOutputs)))
-
-        if j % 100 == 99:
-            print("{:4}/{:4} images processed, {:.1f} seconds used.".format(j + 1 - 1000, N - 1000, time.time() - t0))
-            t0 = time.time()
-
-        if j == N - 1: break
-
-    t0 = time.time()
-    print("Processing out-of-distribution images")
-    ###################################Out-of-Distributions#####################################
-    for j, data in enumerate(testloaderOut):
-        if j < 1000: continue
-        images, _ = data
-
-        inputs = Variable(images, requires_grad=True)
-        outputs = model_original(inputs)
-
-        # Calculating the confidence of the output, no perturbation added here
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-        f2.write("{}, {}, {}\n".format(temper, noiseMagnitude1, np.max(nnOutputs)))
-
-        # Using temperature scaling
-        outputs = outputs / temper
-
-        # Calculating the perturbation we need to add, that is,
-        # the sign of gradient of cross entropy loss w.r.t. input
-        maxIndexTemp = np.argmax(nnOutputs)
-        labels = Variable(torch.LongTensor([maxIndexTemp]))
-        loss = criterion_original(outputs, labels)
-        loss.backward()
-
-        # Normalizing the gradient to binary in {0, 1}
-        gradient = (torch.ge(inputs.grad.data, 0))
-        gradient = (gradient.float() - 0.5) * 2
-        # Normalizing the gradient to the same space of image
-        gradient[0][0] = (gradient[0][0]) / (63.0 / 255.0)
-        gradient[0][1] = (gradient[0][1]) / (62.1 / 255.0)
-        gradient[0][2] = (gradient[0][2]) / (66.7 / 255.0)
-        # Adding small perturbations to images
-        tempInputs = torch.add(inputs.data, -noiseMagnitude1, gradient)
-        outputs = model_original(Variable(tempInputs))
-        outputs = outputs / temper
-        # Calculating the confidence after adding perturbations
-        nnOutputs = outputs.data.cpu()
-        nnOutputs = nnOutputs.numpy()
-        nnOutputs = nnOutputs[0]
-        nnOutputs = nnOutputs - np.max(nnOutputs)
-        nnOutputs = np.exp(nnOutputs) / np.sum(np.exp(nnOutputs))
-        g2.write("{}, {}, {}\n".format(temper, noiseMagnitude1, np.max(nnOutputs)))
-        if j % 100 == 99:
-            print("{:4}/{:4} images processed, {:.1f} seconds used.".format(j + 1 - 1000, N - 1000, time.time() - t0))
-            t0 = time.time()
-
-        if j == N - 1: break
-
-
+# train certain model with the given criterion
 def train(model, trainLoader, criterion, modelName):
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
@@ -331,87 +102,12 @@ def train(model, trainLoader, criterion, modelName):
     store_model(model, f'../models/{modelName}')
 
 
-def error_detection(name, fold_num):
-    # calculate the minimum detection error
-    # calculate baseline
-    T = 1
-    cifar = np.loadtxt(f'./softmax_scores/confidence_Base_In{fold_num}.txt', delimiter=',')
-    other = np.loadtxt(f'./softmax_scores/confidence_Base_Out{fold_num}.txt', delimiter=',')
-    if name == "CIFAR-10":
-        start = 0.1
-        end = 1
-    if name == "CIFAR-100":
-        start = 0.01
-        end = 1
-    gap = (end - start) / 100000
-    # f = open("./{}/{}/T_{}.txt".format(nnName, dataName, T), 'w')
-    Y1 = other[:, 2]
-    X1 = cifar[:, 2]
-    errorBase = 1.0
-    for delta in np.arange(start, end, gap):
-        tpr = np.sum(np.sum(X1 < delta)) / np.float(len(X1))
-        error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        errorBase = np.minimum(errorBase, (tpr + error2) / 2.0)
-
-    # calculate our algorithm
-    T = 1000
-    cifar = np.loadtxt(f'./softmax_scores/confidence_Our_In{fold_num}.txt', delimiter=',')
-    other = np.loadtxt(f'./softmax_scores/confidence_Our_Out{fold_num}.txt', delimiter=',')
-    if name == "CIFAR-10":
-        start = 0.1
-        end = 0.12
-    if name == "CIFAR-100":
-        start = 0.01
-        end = 0.0104
-    gap = (end - start) / 100000
-    # f = open("./{}/{}/T_{}.txt".format(nnName, dataName, T), 'w')
-    Y1 = other[:, 2]
-    X1 = cifar[:, 2]
-    errorNew = 1.0
-    for delta in np.arange(start, end, gap):
-        tpr = np.sum(np.sum(X1 < delta)) / np.float(len(X1))
-        error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        errorNew = np.minimum(errorNew, (tpr + error2) / 2.0)
-
-    # calculate our improved algorithm
-    T = 1000
-    cifar = np.loadtxt(f'./softmax_scores/confidence_Our_In_Improved{fold_num}.txt', delimiter=',')
-    other = np.loadtxt(f'./softmax_scores/confidence_Our_Out_Improved{fold_num}.txt', delimiter=',')
-    if name == "CIFAR-10":
-        start = 0.1
-        end = 0.12
-    if name == "CIFAR-100":
-        start = 0.01
-        end = 0.0104
-    gap = (end - start) / 100000
-    # f = open("./{}/{}/T_{}.txt".format(nnName, dataName, T), 'w')
-    Y1 = other[:, 2]
-    X1 = cifar[:, 2]
-    errorNew_Improved = 1.0
-    for delta in np.arange(start, end, gap):
-        tpr = np.sum(np.sum(X1 < delta)) / np.float(len(X1))
-        error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        errorNew_Improved = np.minimum(errorNew_Improved, (tpr + error2) / 2.0)
-
-    return errorBase, errorNew, errorNew_Improved
-
-
 def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, fold_num):
-    # eval_models(model_original, 1000, 0.0014, inDistLoader, fold_num)
-    # eval_improvement(model_improved, 1000, 0.0014, inDistLoader, fold_num)
-    #
-    # errorBase, errorNew, errorNew_Improved = error_detection("CIFAR-10", fold_num)
-    # print(f"Accuracy: {(1 - errorBase) * 100}, {(1 - errorNew) * 100}, {(1 - errorNew_Improved) * 100}")
-    #
-    # return (('as', (1 - errorBase) * 100),
-    #         ('sd', (1 - errorNew) * 100),
-    #         ('df', (1 - errorNew_Improved) * 100))
-
     results_base = {}
     results_article = {}
     result_improve = {}
 
-    for i in range(1):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
+    for i in range(2):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
         temperature = secrets.choice(hyper_params['temperature'])
         magnitude = secrets.choice(hyper_params['magnitude'])
 
@@ -421,7 +117,7 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
             eval_models(model_original, temperature, magnitude, inDistLoader, fold_num)
             eval_improvement(model_improved, temperature, magnitude, inDistLoader, fold_num)
 
-            errorBase, errorNew, errorNew_Improved = error_detection("CIFAR-10", fold_num)
+            errorBase, errorNew, errorNew_Improved = error_detection(fold_num)
 
             results_base[f'{temperature}_{magnitude}'] = (1 - errorBase) * 100
             results_article[f'{temperature}_{magnitude}'] = (1 - errorNew) * 100
@@ -434,8 +130,8 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
 
 # define a cross validation function
 def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10):
-
-    header = ['Dataset Name'] + ['Algorithm Name', 'Cross Validation [1-10]', 'best temperature_magnitude', 'Acc', ''] * 3
+    # define all table cols
+    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', 'Inference TIme', ''] * 3
     f = open('CIFAR10.csv', 'w', encoding='UTF8')
     writer = csv.writer(f)
     writer.writerow(header)
@@ -471,18 +167,27 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
         new_model_improved = deepcopy(model)
 
         print('train with original loss')
+        original_train = time()
         train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
+        original_train = time() - original_train
         print('train with improved loss')
+        improved_train = time()
         train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
+        improved_train = time() - improved_train
 
         # new_model_original = load_model(f'../models/original_model_{fold_num}')
         # new_model_improved = load_model(f'../models/improved_model_{fold_num}')
 
-        (base), (article), (improve) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
+        (baseAcc), (articleAcc), (improveAcc) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
+        fprBase, fprNew, fprImproved = fpr(fold_num)
+        aurocBase, aurocNew, aurocImproved = auc(fold_num)
+        auprBase, auprNew, auprImproved = aupr(fold_num)
 
-        data = ['CIFAR10'] + ['base', fold_num, base[0], f'{base[1]}%', ''] + ['article', fold_num, article[0], f'{article[1]}%', ''] + ['improve', fold_num, improve[0], f'{improve[1]}%', '']
+        data = ['CIFAR10', fold_num] +\
+               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train, '', ''] +\
+               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew, original_train, '', ''] +\
+               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved, auprImproved, improved_train, '', '']
         writer.writerow(data)
-        break
         fold_num += 1
 
     f.close()
@@ -492,10 +197,11 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
 if __name__ == '__main__':
     warnings.filterwarnings("ignore")
 
+    # update according to the article
     # build convnet trained on CIFAR10 and test against ImageNet
     space = dict()
-    space['temperature'] = [x for x in range(800, 1250, 50)]
-    space['magnitude'] = [x/10000 for x in range(10, 20, 1)]
+    space['temperature'] = [10, 20, 50, 100, 200, 500, 1000, 1500]
+    space['magnitude'] = [0.0005, 0.001, 0.00015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
 
     # transform the in-out images to be of the same shape
     transform = transforms.Compose([
@@ -515,9 +221,10 @@ if __name__ == '__main__':
     for i in range(10):
         split_cifar.append(torch.utils.data.dataset.Subset(trainset, indexes[i]))
 
-    # criterion_original = nn.CrossEntropyLoss()
-    # criterion_improved = LabelSmoothingLoss(smoothing=0.1)
-    # convnet = Convnet()
-    # print(convnet)
-    # cross_validation(convnet, space, criterion_original, criterion_improved, trainset)
+    criterion_original = nn.CrossEntropyLoss()
+    criterion_improved = LabelSmoothingLoss(smoothing=0.1)
+    convnet = Convnet()
+
+    for subset in split_cifar:
+        cross_validation(convnet, space, criterion_original, criterion_improved, subset)
 
