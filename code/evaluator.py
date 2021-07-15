@@ -130,7 +130,7 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
 # define a cross validation function
 def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10):
     # define all table cols
-    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', ''] * 3
+    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', 'Inference TIme', ''] * 3
     f = open('CIFAR10.csv', 'w', encoding='UTF8')
     writer = csv.writer(f)
     writer.writerow(header)
@@ -162,20 +162,20 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
                                                    shuffle=True, num_workers=4)
         test_loader = torch.utils.data.DataLoader(test_set, batch_size=1, shuffle=True, num_workers=4)
 
-        # new_model_original = deepcopy(model)
-        # new_model_improved = deepcopy(model)
-        #
-        # print('train with original loss')
+        new_model_original = deepcopy(model)
+        new_model_improved = deepcopy(model)
+
+        print('train with original loss')
         original_train = time()
-        # train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
+        train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
         original_train = time() - original_train
-        # print('train with improved loss')
+        print('train with improved loss')
         improved_train = time()
-        # train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
+        train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
         improved_train = time() - improved_train
 
-        new_model_original = load_model(f'../models/original_model_{fold_num}')
-        new_model_improved = load_model(f'../models/improved_model_{fold_num}')
+        # new_model_original = load_model(f'../models/original_model_{fold_num}')
+        # new_model_improved = load_model(f'../models/improved_model_{fold_num}')
 
         (baseAcc), (articleAcc), (improveAcc) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
         fprBase, fprNew, fprImproved = fpr(fold_num)
@@ -183,12 +183,10 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
         auprBase, auprNew, auprImproved = aupr(fold_num)
 
         data = ['CIFAR10', fold_num] +\
-               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train, ''] +\
-               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew, original_train, ''] +\
-               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved, auprImproved, improved_train, '']
+               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train, '', ''] +\
+               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew, original_train, '', ''] +\
+               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved, auprImproved, improved_train, '', '']
         writer.writerow(data)
-
-        break
         fold_num += 1
 
     f.close()

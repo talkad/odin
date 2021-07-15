@@ -7,6 +7,7 @@ import numpy as np
 from torch.utils.data import TensorDataset
 import torchvision.transforms as transforms
 import torch.nn.functional as F
+from time import time
 
 
 # the suggested improvement
@@ -27,6 +28,7 @@ class LabelSmoothingLoss(nn.Module):
 
         return (-weight * log_prob).sum(dim=-1).mean()
 
+
 # write the softmax score into files for each model
 def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_num):
 
@@ -36,6 +38,7 @@ def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_n
     h2 = open(f"softmax_scores/confidence_Our_Out_Improved{fold_num}.txt", 'w')
 
     N = 10000
+
     print("Processing in-distribution images")
     ########################################In-distribution###########################################
     for j, data in enumerate(testloader):
@@ -91,8 +94,18 @@ def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_n
     t0 = time.time()
     print("Processing out-of-distribution images")
     ###################################Out-of-Distributions#####################################
+
+    counter = 0
+    timeInf = time()
+
     for j, data in enumerate(testloader):
         if j < 1000: continue
+
+        if counter == 1000:
+            timeInf = time() - timeInf
+        else:
+            counter+=1
+
         images, _ = data
 
         inputs = Variable(images, requires_grad=True)
@@ -136,6 +149,8 @@ def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_n
         if j % 100 == 99:
             print("{:4}/{:4} images processed, {:.1f} seconds used.".format(j + 1 - 1000, N - 1000, time.time() - t0))
             t0 = time.time()
+
+        print(f'inference time measuring fold {fold_num}: {timeInf}')
 
         if j == N - 1: break
 
