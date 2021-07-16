@@ -57,10 +57,9 @@ class Convnet(nn.Module):
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 64)
-        self.fc4 = nn.Linear(64, 10)
+        self.fc1 = nn.Linear(16 * 5 * 5, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -68,21 +67,21 @@ class Convnet(nn.Module):
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        x = self.fc4(x)
+        x = self.fc3(x)
         return x
 
 
 # train certain model with the given criterion
-def train(model, trainLoader, criterion, modelName):
+def train(model, trainLoader, criterion, modelName, subset_num):
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-    for epoch in range(5):  # number of epochs
+    for epoch in range(2):  # number of epochs
 
         running_loss = 0.0
         for i, data in enumerate(trainLoader, 0):
             inputs, labels = data
+            labels = labels - torch.ones([4], dtype=torch.int64) * 10 * subset_num
 
             optimizer.zero_grad()
 
@@ -129,7 +128,7 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
 
 
 # define a cross validation function
-def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10, csv_name='CIFAR10'):
+def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10, csv_name='CIFAR10', subset_num=0):
     # define all table cols
     header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', 'Inference TIme', ''] * 3
     f = open(f'{csv_name}.csv', 'w', encoding='UTF8')
@@ -168,11 +167,11 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
 
         print('train with original loss')
         original_train = time()
-        train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}')
+        train(new_model_original, train_loader, criterion_original, f'original_model_{fold_num}', subset_num)
         original_train = time() - original_train
         print('train with improved loss')
         improved_train = time()
-        train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}')
+        train(new_model_improved, train_loader, criterion_improved, f'improved_model_{fold_num}', subset_num)
         improved_train = time() - improved_train
 
         # new_model_original = load_model(f'../models/original_model_{fold_num}')
@@ -237,6 +236,5 @@ if __name__ == '__main__':
     convnet = Convnet()
 
     for i, subset in enumerate(split_cifar):
-        cross_validation(convnet, space, criterion_original, criterion_improved, subset, csv_name=f'CIFAR{i}')
-        break
+        cross_validation(convnet, space, criterion_original, criterion_improved, subset, csv_name=f'CIFAR{i}', subset_num=i)
 
