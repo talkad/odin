@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils.data import TensorDataset
 import torchvision.transforms as transforms
 import torch.nn.functional as F
-from time import time
+import time
 
 
 # the suggested improvement
@@ -95,16 +95,10 @@ def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_n
     print("Processing out-of-distribution images")
     ###################################Out-of-Distributions#####################################
 
-    counter = 0
-    timeInf = time()
+    timeInf = time.time()
 
     for j, data in enumerate(testloader):
         if j < 1000: continue
-
-        if counter == 1000:
-            timeInf = time() - timeInf
-        else:
-            counter+=1
 
         images, _ = data
 
@@ -150,9 +144,10 @@ def eval_improvement(model_improved, temper, noiseMagnitude1, testloader, fold_n
             # print("{:4}/{:4} images processed, {:.1f} seconds used.".format(j + 1 - 1000, N - 1000, time.time() - t0))
             t0 = time.time()
 
-        print(f'inference time measuring fold {fold_num}: {timeInf}')
+        if j == N - 1:
+            break
 
-        if j == N - 1: break
+    print(f'inference time measuring fold {fold_num}: {time.time() - timeInf} for {j} instances')
 
 
 def eval_models(model_original, temper, noiseMagnitude1, testloader, fold_num):

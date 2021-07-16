@@ -107,7 +107,7 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
     results_article = {}
     result_improve = {}
 
-    for i in range(2):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
+    for i in range(3):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
         temperature = secrets.choice(hyper_params['temperature'])
         magnitude = secrets.choice(hyper_params['magnitude'])
 
@@ -129,10 +129,10 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
 
 
 # define a cross validation function
-def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10):
+def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10, csv_name='CIFAR10'):
     # define all table cols
     header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', 'Inference TIme', ''] * 3
-    f = open('CIFAR10.csv', 'w', encoding='UTF8')
+    f = open(f'{csv_name}.csv', 'w', encoding='UTF8')
     writer = csv.writer(f)
     writer.writerow(header)
 
@@ -183,7 +183,7 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
         aurocBase, aurocNew, aurocImproved = auc(fold_num)
         auprBase, auprNew, auprImproved = aupr(fold_num)
 
-        data = ['CIFAR10', fold_num] +\
+        data = [csv_name, fold_num] +\
                ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train, '', ''] +\
                ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew, original_train, '', ''] +\
                ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved, auprImproved, improved_train, '', '']
@@ -198,22 +198,33 @@ if __name__ == '__main__':
     warnings.filterwarnings("ignore")
 
     # update according to the article
-    # build convnet trained on CIFAR10 and test against ImageNet
     space = dict()
     space['temperature'] = [10, 20, 50, 100, 200, 500, 1000, 1500]
     space['magnitude'] = [0.0005, 0.001, 0.00015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
 
     # transform the in-out images to be of the same shape
     transform = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop(32),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(degrees=(0, 90)),
+        transforms.ToTensor(),
         transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
     ])
 
-    trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True)
+    # trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    # criterion_original = nn.CrossEntropyLoss()
+    # criterion_improved = LabelSmoothingLoss(smoothing=0.1)
+    # convnet = Convnet()
+    #
+    # # cross_validation(convnet, space, criterion_original, criterion_improved, trainset, csv_name=f'CIFAR{10}')
+    # print(len(trainset.data))
+
+    trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
+    for i in range(9):
+        trainset = torch.utils.data.ConcatDataset([trainset, torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)])
 
     indexes = {0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: []}
-    for idx, (data, feature) in enumerate(trainset):
+    for idx, (_, feature) in enumerate(trainset):
         indexes[int(feature / 10)].append(idx)
 
     split_cifar = []
@@ -225,6 +236,7 @@ if __name__ == '__main__':
     criterion_improved = LabelSmoothingLoss(smoothing=0.1)
     convnet = Convnet()
 
-    for subset in split_cifar:
-        cross_validation(convnet, space, criterion_original, criterion_improved, subset)
+    for i, subset in enumerate(split_cifar):
+        cross_validation(convnet, space, criterion_original, criterion_improved, subset, csv_name=f'CIFAR{i}')
+        break
 

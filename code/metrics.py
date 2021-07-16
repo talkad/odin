@@ -52,6 +52,9 @@ def error_detection(fold_num):
         errorNew = np.minimum(errorNew, (tpr + error2) / 2.0)
 
     # calculate our improved algorithm
+    start = 0.1
+    end = 0.12
+
     base_in = np.loadtxt(f'./softmax_scores/confidence_Our_In_Improved{fold_num}.txt', delimiter=',')
     base_out = np.loadtxt(f'./softmax_scores/confidence_Our_Out_Improved{fold_num}.txt', delimiter=',')
 
@@ -83,7 +86,7 @@ def fpr(fold_num):
     for delta in np.arange(start, end, gap):
         tpr = np.sum(np.sum(X1 >= delta)) / np.float(len(X1))
         error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        if tpr <= 0.9505 and tpr >= 0.9495:
+        if tpr <= 0.97 and tpr >= 0.93:
             fpr += error2
             total += 1
     fprBase = fpr / total
@@ -102,7 +105,7 @@ def fpr(fold_num):
     for delta in np.arange(start, end, gap):
         tpr = np.sum(np.sum(X1 >= delta)) / np.float(len(X1))
         error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        if tpr <= 0.9505 and tpr >= 0.9495:
+        if tpr <= 0.97 and tpr >= 0.93:
             fpr += error2
             total += 1
     fprNew = fpr / total
@@ -121,7 +124,7 @@ def fpr(fold_num):
     for delta in np.arange(start, end, gap):
         tpr = np.sum(np.sum(X1 >= delta)) / np.float(len(X1))
         error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        if tpr <= 0.9505 and tpr >= 0.9495:
+        if tpr <= 0.97 and tpr >= 0.93:
             fpr += error2
             total += 1
     fprImproved = fpr / total
@@ -186,6 +189,7 @@ def auc(fold_num):
     aurocImproved += fpr * tpr
 
     return aurocBase*100, aurocNew*100, aurocImproved*100
+
 
 # calculate the AUPR
 def aupr(fold_num):
