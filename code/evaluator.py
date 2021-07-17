@@ -57,8 +57,8 @@ class Convnet(nn.Module):
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 128)
-        self.fc2 = nn.Linear(128, 64)
+        self.fc1 = nn.Linear(16 * 5 * 5, 64)
+        self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 10)
 
     def forward(self, x):
@@ -98,7 +98,7 @@ def train(model, trainLoader, criterion, modelName, subset_num):
                       (epoch + 1, i + 1, running_loss / 1000))
                 running_loss = 0.0
 
-    store_model(model, f'../models/{modelName}')
+    # store_model(model, f'../models/{modelName}')
 
 
 def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, fold_num):
@@ -106,7 +106,7 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
     results_article = {}
     result_improve = {}
 
-    for i in range(3):  ## change it to 50!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
+    for i in range(50):
         temperature = secrets.choice(hyper_params['temperature'])
         magnitude = secrets.choice(hyper_params['magnitude'])
 
@@ -198,8 +198,10 @@ if __name__ == '__main__':
 
     # update according to the article
     space = dict()
-    space['temperature'] = [10, 20, 50, 100, 200, 500, 1000, 1500]
-    space['magnitude'] = [0.0005, 0.001, 0.00015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
+    # space['temperature'] = [10, 20, 50, 100, 200, 500, 1000, 1500]
+    # space['magnitude'] = [0.0005, 0.001, 0.0015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
+    space['temperature'] = [1000]
+    space['magnitude'] = [0.001]
 
     # transform the in-out images to be of the same shape
     transform = transforms.Compose([

@@ -86,7 +86,7 @@ def fpr(fold_num):
     for delta in np.arange(start, end, gap):
         tpr = np.sum(np.sum(X1 >= delta)) / np.float(len(X1))
         error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        if tpr <= 0.97 and tpr >= 0.93:
+        if tpr <= 1 and tpr >= 0.9:
             fpr += error2
             total += 1
     fprBase = fpr / total
@@ -105,7 +105,7 @@ def fpr(fold_num):
     for delta in np.arange(start, end, gap):
         tpr = np.sum(np.sum(X1 >= delta)) / np.float(len(X1))
         error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        if tpr <= 0.97 and tpr >= 0.93:
+        if tpr <= 1 and tpr >= 0.9:
             fpr += error2
             total += 1
     fprNew = fpr / total
@@ -124,7 +124,7 @@ def fpr(fold_num):
     for delta in np.arange(start, end, gap):
         tpr = np.sum(np.sum(X1 >= delta)) / np.float(len(X1))
         error2 = np.sum(np.sum(Y1 > delta)) / np.float(len(Y1))
-        if tpr <= 0.97 and tpr >= 0.93:
+        if tpr <= 1 and tpr >= 0.9:
             fpr += error2
             total += 1
     fprImproved = fpr / total
