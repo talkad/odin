@@ -1,5 +1,9 @@
+import os
 from copy import deepcopy
 import torch
+from scipy import stats
+import numpy as np
+import scikit_posthocs
 import torchvision
 import torchvision.transforms as transforms
 import torch.nn as nn
@@ -21,6 +25,7 @@ def store_model(model, filename):
     pickle_file = open(filename, 'wb')
     pickle.dump(model, pickle_file)
     pickle_file.close()
+
 
 # load the stored model
 def load_model(filename):
@@ -73,7 +78,6 @@ class Convnet(nn.Module):
 
 # train certain model with the given criterion
 def train(model, trainLoader, criterion, modelName, subset_num):
-
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     for epoch in range(2):  # number of epochs
@@ -111,7 +115,6 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
         magnitude = secrets.choice(hyper_params['magnitude'])
 
         if f'{temperature}_{magnitude}' not in results_base:
-
             print(f'evaluate temp {temperature} mag {magnitude}')
             eval_models(model_original, temperature, magnitude, inDistLoader, fold_num)
             eval_improvement(model_improved, temperature, magnitude, inDistLoader, fold_num)
@@ -128,9 +131,12 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
 
 
 # define a cross validation function
-def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10, csv_name='CIFAR10', subset_num=0):
+def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10,
+                     csv_name='CIFAR10', subset_num=0):
     # define all table cols
-    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', 'Inference TIme', ''] * 3
+    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy',
+                                                            'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve',
+                                                            'Training TIme', 'Inference TIme', ''] * 3
     f = open(f'{csv_name}.csv', 'w', encoding='UTF8')
     writer = csv.writer(f)
     writer.writerow(header)
@@ -177,15 +183,19 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
         # new_model_original = load_model(f'../models/original_model_{fold_num}')
         # new_model_improved = load_model(f'../models/improved_model_{fold_num}')
 
-        (baseAcc), (articleAcc), (improveAcc) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
+        (baseAcc), (articleAcc), (improveAcc) = evaluate_models(new_model_original, new_model_improved, hyper_params,
+                                                                test_loader, fold_num)
         fprBase, fprNew, fprImproved = fpr(fold_num)
         aurocBase, aurocNew, aurocImproved = auc(fold_num)
         auprBase, auprNew, auprImproved = aupr(fold_num)
 
-        data = [csv_name, fold_num] +\
-               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train, '', ''] +\
-               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew, original_train, '', ''] +\
-               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved, auprImproved, improved_train, '', '']
+        data = [csv_name, fold_num] + \
+               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train,
+                '', ''] + \
+               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew,
+                original_train, '', ''] + \
+               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved,
+                auprImproved, improved_train, '', '']
         writer.writerow(data)
         fold_num += 1
 
@@ -240,3 +250,21 @@ if __name__ == '__main__':
     for i, subset in enumerate(split_cifar):
         cross_validation(convnet, space, criterion_original, criterion_improved, subset, csv_name=f'CIFAR{i}', subset_num=i)
 
+    birdidx = {0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: None, 7: None, 8: None, 9: None}
+    idx = 0
+
+    for x in os.listdir("./data"):
+        if x.__contains__("Birds"):
+            birdidx[idx] = torchvision.datasets.ImageFolder(root="./data/" + x, transform=transform)
+            idx += 1
+
+    for i in range(10):
+        for _ in range(25):
+            birdidx[i] = torch.utils.data.ConcatDataset([birdidx[i], torchvision.datasets.ImageFolder(root="./data/Birds" + str(i+1), transform=transform)])
+
+    criterion_original = nn.CrossEntropyLoss()
+    criterion_improved = LabelSmoothingLoss(smoothing=0.1)
+    convnet = Convnet()
+
+    for i in range(10):
+        cross_validation(convnet, space, criterion_original, criterion_improved, birdidx[i], csv_name=f'Bird{str(i+1)}')
