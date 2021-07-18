@@ -1,3 +1,6 @@
+# This class shows the diffrences between the DenseNet trained with crossEntropy against label smoothing loss
+
+# In our main class, evaluator.py, we created less complicated CNN.
 import torch
 import torchvision
 import torchvision.transforms as transforms
@@ -8,15 +11,16 @@ import pickle
 from torch.autograd import Variable
 import time
 import numpy as np
-import calMetric as m
 
 
+# store the model in file
 def store_model(model, filename):
     pickle_file = open(filename, 'wb')
     pickle.dump(model, pickle_file)
     pickle_file.close()
 
 
+# load the model from file
 def load_model(filename):
     pickle_file = open(filename, 'rb')
     loaded = pickle.load(pickle_file)
@@ -25,6 +29,9 @@ def load_model(filename):
     return loaded
 
 
+# the suggested improvement
+# replacing the cross entropy loss with label smoothing loss
+# this modification should make the model less overconfident and as a result to increase the softmax gap.
 class LabelSmoothingLoss(nn.Module):
 
     def __init__(self, smoothing=0.0):
@@ -42,6 +49,7 @@ class LabelSmoothingLoss(nn.Module):
         return (-weight * log_prob).sum(dim=-1).mean()
 
 
+# train the given DenseNet with different criterion
 def train():
     densenet = torch.load("../models/{}.pth".format('densenet10'))
     densenet.cuda(0)
@@ -92,6 +100,7 @@ def train():
     store_model(densenet, '../models/improved_densenet')
 
 
+# check the accuracy of the models
 def testImprovement(criterion, testloader10, testloader, nnName, noiseMagnitude1, temper):
 
     densenet = load_model("../models/{}".format(nnName))
@@ -208,19 +217,17 @@ def testImprovement(criterion, testloader10, testloader, nnName, noiseMagnitude1
 
 
 if __name__ == '__main__':
-    train()
-    # transform = transforms.Compose([
-    #     transforms.ToTensor(),
-    #     transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
-    # ])
-    #
-    # testsetout = torchvision.datasets.ImageFolder("../data/{}".format('Imagenet'), transform=transform)
-    # testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=1,
-    #                                             shuffle=False, num_workers=2)
-    #
-    # testset = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform)
-    # testloaderIn = torch.utils.data.DataLoader(testset, batch_size=1,
-    #                                            shuffle=False, num_workers=2)
-    #
-    # testImprovement(LabelSmoothingLoss(smoothing=0.3), testloaderIn, testloaderOut, 'improved_densenet', 0.0014, 1000)
-    # # m.metric('improved_densenet', 'Imagenet')
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
+    ])
+
+    testsetout = torchvision.datasets.ImageFolder("../data/{}".format('Imagenet'), transform=transform)
+    testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=1,
+                                                shuffle=False, num_workers=2)
+
+    testset = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform)
+    testloaderIn = torch.utils.data.DataLoader(testset, batch_size=1,
+                                               shuffle=False, num_workers=2)
+
+    testImprovement(LabelSmoothingLoss(smoothing=0.3), testloaderIn, testloaderOut, 'improved_densenet', 0.0014, 1000)

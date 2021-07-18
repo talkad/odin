@@ -1,3 +1,5 @@
+# Main project class
+import os
 from copy import deepcopy
 import torch
 import torchvision
@@ -22,6 +24,7 @@ def store_model(model, filename):
     pickle.dump(model, pickle_file)
     pickle_file.close()
 
+
 # load the stored model
 def load_model(filename):
     pickle_file = open(filename, 'rb')
@@ -33,6 +36,7 @@ def load_model(filename):
 
 # the suggested improvement
 # replacing the cross entropy loss with label smoothing loss
+# this modification should make the model less overconfident and as a result to increase the softmax gap.
 class LabelSmoothingLoss(nn.Module):
 
     def __init__(self, smoothing=0.0):
@@ -71,9 +75,8 @@ class Convnet(nn.Module):
         return x
 
 
-# train certain model with the given criterion
+# train certain model with the given loss criterion
 def train(model, trainLoader, criterion, modelName, subset_num):
-
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     for epoch in range(2):  # number of epochs
@@ -98,9 +101,11 @@ def train(model, trainLoader, criterion, modelName, subset_num):
                       (epoch + 1, i + 1, running_loss / 1000))
                 running_loss = 0.0
 
-    # store_model(model, f'../models/{modelName}')
+    store_model(model, f'../models/{modelName}')
 
 
+# evaluate each model with 50 different combinations of (temperature, perturbation)
+# to find the optimal combination - the one with the best accuracy
 def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, fold_num):
     results_base = {}
     results_article = {}
@@ -111,7 +116,6 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
         magnitude = secrets.choice(hyper_params['magnitude'])
 
         if f'{temperature}_{magnitude}' not in results_base:
-
             print(f'evaluate temp {temperature} mag {magnitude}')
             eval_models(model_original, temperature, magnitude, inDistLoader, fold_num)
             eval_improvement(model_improved, temperature, magnitude, inDistLoader, fold_num)
@@ -128,9 +132,12 @@ def evaluate_models(model_original, model_improved, hyper_params, inDistLoader, 
 
 
 # define a cross validation function
-def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10, csv_name='CIFAR10', subset_num=0):
+def cross_validation(model, hyper_params, criterion_original, criterion_improved, dataset, k_fold=10,
+                     csv_name='CIFAR10', subset_num=0):
     # define all table cols
-    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy', 'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve', 'Training TIme', 'Inference TIme', ''] * 3
+    header = ['Dataset Name', 'Cross Validation [1-10]'] + ['Algorithm Name', 'best temperature_magnitude', 'Accuracy',
+                                                            'TPR', 'FPR', 'Precision', 'AUC', 'PR-Curve',
+                                                            'Training TIme', 'Inference TIme', ''] * 3
     f = open(f'{csv_name}.csv', 'w', encoding='UTF8')
     writer = csv.writer(f)
     writer.writerow(header)
@@ -141,6 +148,7 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
     fraction = 1 / k_fold
     seg = int(total_size * fraction)
 
+    # separate dataset to 10 folds
     for i in range(k_fold):
         trll = 0
         trlr = i * seg
@@ -177,15 +185,20 @@ def cross_validation(model, hyper_params, criterion_original, criterion_improved
         # new_model_original = load_model(f'../models/original_model_{fold_num}')
         # new_model_improved = load_model(f'../models/improved_model_{fold_num}')
 
-        (baseAcc), (articleAcc), (improveAcc) = evaluate_models(new_model_original, new_model_improved, hyper_params, test_loader, fold_num)
+        # evaluation of model metrics
+        (baseAcc), (articleAcc), (improveAcc) = evaluate_models(new_model_original, new_model_improved, hyper_params,
+                                                                test_loader, fold_num)
         fprBase, fprNew, fprImproved = fpr(fold_num)
         aurocBase, aurocNew, aurocImproved = auc(fold_num)
         auprBase, auprNew, auprImproved = aupr(fold_num)
 
-        data = [csv_name, fold_num] +\
-               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train, '', ''] +\
-               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew, original_train, '', ''] +\
-               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved, auprImproved, improved_train, '', '']
+        data = [csv_name, fold_num] + \
+               ['base', baseAcc[0], baseAcc[1], 95, fprBase, 95 / (95 + fprBase), aurocBase, auprBase, original_train,
+                '', ''] + \
+               ['article', articleAcc[0], articleAcc[1], 95, fprNew, 95 / (95 + fprBase), aurocNew, auprNew,
+                original_train, '', ''] + \
+               ['improve', improveAcc[0], improveAcc[1], 95, fprImproved, 95 / (95 + fprBase), aurocImproved,
+                auprImproved, improved_train, '', '']
         writer.writerow(data)
         fold_num += 1
 
@@ -210,6 +223,7 @@ if __name__ == '__main__':
         transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
     ])
 
+    # evaluate 10 partitions of CIFAR100
     trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
     for i in range(9):
         trainset = torch.utils.data.ConcatDataset([trainset, torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)])
@@ -230,4 +244,22 @@ if __name__ == '__main__':
     for i, subset in enumerate(split_cifar):
         cross_validation(convnet, space, criterion_original, criterion_improved, subset, csv_name=f'CIFAR{i}', subset_num=i)
 
+    # evaluate 10 partitions of birds dataset - https://www.kaggle.com/gpiosenka/100-bird-species
+    birdidx = {0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: None, 7: None, 8: None, 9: None}
+    idx = 0
 
+    for x in os.listdir("./data"):
+        if x.__contains__("Birds"):
+            birdidx[idx] = torchvision.datasets.ImageFolder(root="./data/" + x, transform=transform)
+            idx += 1
+
+    for i in range(10):
+        for _ in range(25):
+            birdidx[i] = torch.utils.data.ConcatDataset([birdidx[i], torchvision.datasets.ImageFolder(root="./data/Birds" + str(i+1), transform=transform)])
+
+    criterion_original = nn.CrossEntropyLoss()
+    criterion_improved = LabelSmoothingLoss(smoothing=0.1)
+    convnet = Convnet()
+
+    for i in range(10):
+        cross_validation(convnet, space, criterion_original, criterion_improved, birdidx[i], csv_name=f'Bird{str(i+1)}')
