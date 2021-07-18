@@ -248,14 +248,14 @@ if __name__ == '__main__':
     birdidx = {0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: None, 7: None, 8: None, 9: None}
     idx = 0
 
-    for x in os.listdir("./data"):
+    for x in os.listdir("./train"):
         if x.__contains__("Birds"):
-            birdidx[idx] = torchvision.datasets.ImageFolder(root="./data/" + x, transform=transform)
+            birdidx[idx] = torchvision.datasets.ImageFolder(root="./train/" + x, transform=transform)
             idx += 1
 
     for i in range(10):
         for _ in range(25):
-            birdidx[i] = torch.utils.data.ConcatDataset([birdidx[i], torchvision.datasets.ImageFolder(root="./data/Birds" + str(i+1), transform=transform)])
+            birdidx[i] = torch.utils.data.ConcatDataset([birdidx[i], torchvision.datasets.ImageFolder(root="./train/Birds" + str(i+1), transform=transform)])
 
     criterion_original = nn.CrossEntropyLoss()
     criterion_improved = LabelSmoothingLoss(smoothing=0.1)
