@@ -198,10 +198,8 @@ if __name__ == '__main__':
 
     # update according to the article
     space = dict()
-    # space['temperature'] = [10, 20, 50, 100, 200, 500, 1000, 1500]
-    # space['magnitude'] = [0.0005, 0.001, 0.0015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
-    space['temperature'] = [1000]
-    space['magnitude'] = [0.001]
+    space['temperature'] = [10, 20, 50, 100, 200, 500, 1000, 1500]
+    space['magnitude'] = [0.0005, 0.001, 0.0015, 0.002, 0.0025, 0.003, 0.0035, 0.004]
 
     # transform the in-out images to be of the same shape
     transform = transforms.Compose([
@@ -211,14 +209,6 @@ if __name__ == '__main__':
         transforms.ToTensor(),
         transforms.Normalize((125.3 / 255, 123.0 / 255, 113.9 / 255), (63.0 / 255, 62.1 / 255.0, 66.7 / 255.0)),
     ])
-
-    # trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    # criterion_original = nn.CrossEntropyLoss()
-    # criterion_improved = LabelSmoothingLoss(smoothing=0.1)
-    # convnet = Convnet()
-    #
-    # # cross_validation(convnet, space, criterion_original, criterion_improved, trainset, csv_name=f'CIFAR{10}')
-    # print(len(trainset.data))
 
     trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
     for i in range(9):
@@ -239,4 +229,5 @@ if __name__ == '__main__':
 
     for i, subset in enumerate(split_cifar):
         cross_validation(convnet, space, criterion_original, criterion_improved, subset, csv_name=f'CIFAR{i}', subset_num=i)
+
 
